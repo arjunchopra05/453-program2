@@ -1,0 +1,39 @@
+export LD_LIBRARY_PATH=$(CURDIR):$$(LD_LIBRARY_PATH)
+
+magic64.o: magic64.S
+	gcc $(FLAGS) -c -o magic64.o magic64.S
+
+smartalloc.o: smartalloc.c smartalloc.h
+	gcc $(FLAGS) -c -o smartalloc.o smartalloc.c
+
+----------------------------------------------------------------
+
+CC      = gcc
+CFLAGS  = -Wall -g -fPIC
+AR         = ar
+ARFLAGS = rcs
+
+# lib names
+LIBLWP = lwp
+
+# obj files
+LWPOBJS = lwp.o magic64.o smartalloc.o
+
+all: lib$(LIBLWP).a
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+%.o: %.S
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+smartalloc.o: smartalloc.c smartalloc.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+lib$(LIBLWP).a: $(LWPOBJS)
+	$(AR) $(ARFLAGS) $@ $^
+
+.PHONY: all clean
+
+clean:
+	rm -f *~ lib$(LIBLWP).a lwp.o

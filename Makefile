@@ -1,29 +1,32 @@
 FLAGS = -Wall -Werror -fPIC
 
-export LD_LIBRARY_PATH=$(CURDIR):$$(LD_LIBRARY_PATH)
-
-.PHONY: lwp libsmalloc.a
+.PHONY: lwp clean
 
 all: lwp
 
 lwp: liblwp.a
 
-lwp.o: lwp.c libsmalloc.a
-	gcc $(FLAGS) -S -c -o lwp.o lwp.c libsmalloc.a
+lwp.o: lwp.c
+	gcc $(FLAGS) -c -o lwp.o lwp.c
 
-liblwp.a: lwp.o
-	ar r liblwp.a lwp.o
+liblwp.a: lwp.o smartalloc.o magic64.o
+	ar rcs liblwp.a lwp.o magic64.o smartalloc.o
 	ranlib liblwp.a
 
 clean:
 	rm -rf lwp.o liblwp.a *~ TAGS core
 
-smalloc.o: smartalloc.c
-	gcc -Wall -Werror -fPIC -c -o smalloc.o smartalloc.c
+numbers: numbersmain.c liblwp.a
+	gcc -Wall -Werror -o numbers numbersmain.c liblwp.a AlwaysZero.o
 
-libsmalloc.a: smalloc.o
-	ar r libsmalloc.a smalloc.o
-	ranlib libsmalloc.a
+snakes: randomsnakes.c liblwp.a
+	gcc -Wall -Werror -o snakes randomsnakes.c liblwp.a -lncurses
 
-numbers: liblwp.a libsmalloc.a
-	gcc -o numbers numbersmain.c liblwp.a libsmalloc.a
+cleantest:
+	rm -rf numbers snakes
+
+magic64.o: magic64.S
+	gcc $(FLAGS) -c -o magic64.o magic64.S
+
+smartalloc.o: smartalloc.c smartalloc.h
+	gcc $(FLAGS) -c -o smartalloc.o smartalloc.c
