@@ -9,128 +9,91 @@
 #include <unistd.h>
 #include <sys/resource.h>
 
-static thread curr_td = NULL;
-static thread wait_head = NULL;
-static thread zomb_head = NULL;
-static void lwp_wrap(lwpfun, void *);
-void swap_rfiles(rfile *old, rfile *new);
-
-/* ROUND ROBIN SCHEDULER: */
-// Will implement it as a singly linked list for now
-static thread rrStart = NULL;
-static thread rrEnd = NULL;
-void rrInit(void){
-    rrStart = NULL;
-    rrEnd = NULL;
+/* Round Robin scheduler */
+static thread sched_head = NULL;
+static thread sched_tail = NULL;
+void rr_init(void){
+    sched_head = NULL;
+    sched_tail = NULL;
 }
 
-void rrShutdown(void){
-    rrStart = NULL;
-    rrEnd = NULL;
+void rr_shutdown(void){
+    sched_head = NULL;
+    sched_tail = NULL;
 }
 
-void rrAdmit(thread new){
-    new->sched_one = NULL; // use "sched_one" as our next pointer
-    if (rrStart == NULL){
-        rrStart = new;
-        rrEnd = new;
+void rr_admit(thread new){
+    new->sched_one = NULL;
+    if (sched_head == NULL){
+        sched_head = new;
+        sched_tail = new;
     }
     else{
-        // move the tail
-        rrEnd->sched_one = new;
-        rrEnd = new;
+        sched_tail->sched_one = new;
+        sched_tail = new;
     }
 }
 
-// remove the passed context from the scheduler's scheduling pool (do not have to worry about exiting a thread here)
-void rrRemove(thread victim){
-    if (rrStart == NULL){
-        return;
-    }
+void rr_remove(thread victim){
+    if (sched_head == NULL) return;
 
-    thread rrCurr = rrStart;
-    thread rrPrev = NULL;
+    thread curr = sched_head;
+    thread prev = NULL;
 
-    while (rrCurr != NULL){
-        if (rrCurr == victim){
-            if (rrCurr == rrStart){
-                rrStart = rrStart->sched_one;
-                if (rrCurr == rrEnd){
-                    rrEnd = NULL;
+    while (curr != NULL){
+        if (curr == victim){
+            if (curr == sched_head){
+                sched_head = sched_head->sched_one;
+                if (curr == sched_tail){
+                    sched_tail = NULL;
                 }
             }
             else{
-                rrPrev->sched_one = rrCurr->sched_one;
-                if (rrEnd == victim){
-                    rrEnd = rrPrev;
+                prev->sched_one = curr->sched_one;
+                if (sched_tail == victim){
+                    sched_tail = prev;
                 }
             }
             victim->sched_one = NULL;
             return;
         }
-        rrPrev = rrCurr;
-        rrCurr = rrCurr->sched_one;
+        prev = curr;
+        curr = curr->sched_one;
     }
 }
 
-thread rrNext(void){
-    if (rrStart == NULL){
+thread rr_next(void){
+    if (sched_head == NULL){
         return NULL;
     }
 
-    thread nextThread = rrStart;
-    rrStart = rrStart->sched_one;
+    thread next = sched_head;
+    sched_head = sched_head->sched_one;
 
-    if (rrStart == NULL) {
-        rrEnd = NULL;
-        nextThread->sched_one = NULL;
-        return nextThread;
+    if (sched_head == NULL) {
+        next->sched_one = NULL;
+        sched_tail = NULL;
+        return next;
     }
 
-    nextThread->sched_one = NULL;
-    rrEnd->sched_one = nextThread;
-    rrEnd = nextThread;
-    return nextThread;
+    next->sched_one = NULL;
+    sched_tail->sched_one = next;
+    sched_tail = next;
+    return next;
 }
 
-// RR instantiation
-static struct scheduler rrPublish = {rrInit, rrShutdown, rrAdmit, rrRemove, rrNext};
-static scheduler RoundRobin = &rrPublish;
-/*static thread sched_head = NULL;
-
-void rr_admit(thread new) {
-    if (!sched_head) {
-        sched_head = new;
-        sched_head->sched_one = sched_head;
-        sched_head->sched_two = sched_head;
-    }
-    else {
-        new->sched_one = sched_head;
-        new->sched_two = sched_head->sched_two;
-        sched_head->sched_two->sched_one = new;
-        sched_head->sched_two = new;
-    }
-}
-
-void rr_remove(thread victim) {
-    if (victim->tid == sched_head->tid) {
-        sched_head = sched_head->sched_one;
-    }
-    victim->sched_two->sched_one = victim->sched_one;
-    victim->sched_one->sched_two = victim->sched_two;
-}
-
-thread rr_next(void) {
-    if (!sched_head) return NULL;
-    else if (sched_head->sched_one == sched_head) return NULL;
-    
-    return sched_head->sched_one;
-}
-
-struct scheduler rr_publish = {NULL, NULL, rr_admit, rr_remove, rr_next};
-scheduler RoundRobin = &rr_publish;*/
+static struct scheduler rr_publish = {rr_init, rr_shutdown, rr_admit, rr_remove, rr_next};
+static scheduler RoundRobin = &rr_publish;
 
 static scheduler sched = NULL;
+
+/* helpers and globals */
+static thread curr_td = NULL;
+static thread wait_head = NULL;
+static thread zomb_head = NULL;
+static void lwp_wrap(lwpfun, void *);
+void swap_rfiles(rfile *old, rfile *new);
+static struct threadinfo_st mainSysThread;
 
 void add_queue(thread *list_head, thread new_td) {
     if (*list_head) {
@@ -164,6 +127,7 @@ void rm_queue(thread *list_head, thread victim_td) {
 }
 
 
+/* lwp functionality */
 #define DFLT_STACK 8*1024*1024
 
 static tid_t tid_cntr = NO_THREAD;
@@ -190,7 +154,7 @@ tid_t lwp_create(lwpfun fun, void *param, size_t size) {
 
     thread td = (thread) malloc(sizeof(context));
     tid_cntr++;
-    fprintf(stderr, "created thread %d\n", (int) tid_cntr);
+    //fprintf(stderr, "created thread %d\n", (int) tid_cntr);
     td->tid = tid_cntr;
     td->stack = s;
     td->stacksize = stack_size;
@@ -216,10 +180,10 @@ tid_t lwp_create(lwpfun fun, void *param, size_t size) {
 void  lwp_start(void) {
     if (!sched) sched = RoundRobin;
     
-    thread td = (thread) malloc(sizeof(context));
-    memset(td, 0, sizeof(context));
+    thread td = &mainSysThread;
+    memset(&td->state, 0, sizeof(td->state));
     tid_cntr++;
-    fprintf(stderr, "start with thread %d\n", (int)tid_cntr);
+    //fprintf(stderr, "start with thread %d\n", (int)tid_cntr);
     td->tid = tid_cntr;
     td->status = MKTERMSTAT(LWP_LIVE,0);
     td->stack = NULL;
@@ -231,7 +195,7 @@ void  lwp_start(void) {
 }
 
 void  lwp_exit(int status) {
-    fprintf(stderr, "exiting thread %d\n", (int)curr_td->tid);
+    //fprintf(stderr, "exiting thread %d\n", (int)curr_td->tid);
     thread exit_td = curr_td;
     sched->remove(curr_td);
     exit_td->status = MKTERMSTAT(LWP_TERM, status);
@@ -256,7 +220,7 @@ tid_t lwp_gettid(void) {
 }
 
 void  lwp_yield(void) {
-    fprintf(stderr, "yield\n");
+    //fprintf(stderr, "yield\n");
     thread next_td = sched->next();
     if (!next_td) exit(curr_td->status); //no more runnable threads
     
@@ -266,7 +230,7 @@ void  lwp_yield(void) {
 }
 
 tid_t lwp_wait(int *status) {
-    fprintf(stderr, "wait\n");
+    //fprintf(stderr, "wait\n");
     int stat;
     int runnableCond = 0;
     thread iter;
@@ -288,7 +252,7 @@ tid_t lwp_wait(int *status) {
     if (!zomb_head) {
         if (!runnableCond) return NO_THREAD;
 
-        fprintf(stderr, "blocking\n");
+        //fprintf(stderr, "blocking\n");
         //block until one terminates
         add_queue(&wait_head, curr_td);
         sched->remove(curr_td);
@@ -360,8 +324,8 @@ thread tid2thread(tid_t tid) {
 }
 
 static void lwp_wrap(lwpfun fun, void *arg) {
-    fprintf(stderr, "wrapper\n");
+    //fprintf(stderr, "wrapper\n");
     int rval = fun(arg);
-    fprintf(stderr, "finished lwpfun\n");
+    //fprintf(stderr, "finished lwpfun\n");
     lwp_exit(rval);
 }
