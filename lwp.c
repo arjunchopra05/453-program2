@@ -15,7 +15,91 @@ static thread zomb_head = NULL;
 static void lwp_wrap(lwpfun, void *);
 void swap_rfiles(rfile *old, rfile *new);
 
-static thread sched_head = NULL;
+/* ROUND ROBIN SCHEDULER: */
+// Will implement it as a singly linked list for now
+static thread rrStart = NULL;
+static thread rrEnd = NULL;
+
+void rrInit(void){
+    rrStart = NULL;
+    rrEnd = NULL;
+}
+
+void rrShutdown(void){
+    rrStart = NULL;
+    rrEnd = NULL;
+}
+
+void rrAdmit(thread new){
+    new->sched_one = NULL; // use "sched_one" as our next pointer
+    if (rrStart == NULL){
+        rrStart = new;
+        rrEnd = new;
+    }
+    else{
+        // move the tail
+        rrEnd->sched_one = new;
+        rrEnd = new;
+    }
+    callableThreads++;
+}
+
+// remove the passed context from the scheduler's scheduling pool (do not have to worry about exiting a thread here)
+void rrRemove(thread victim){
+    if (rrStart == NULL){
+        return;
+    }
+
+    thread rrCurr = rrStart;
+    thread rrPrev = NULL;
+
+    while (rrCurr != NULL){
+        if (rrCurr == victim){
+            if (rrCurr == rrStart){
+                rrStart = rrStart->sched_one;
+                if (rrCurr == rrEnd){
+                    rrEnd = NULL;
+                }
+            }
+            else{
+                rrPrev->sched_one = rrCurr->sched_one;
+                if (rrEnd == victim){
+                    rrEnd = rrPrev;
+                }
+            }
+            victim->sched_one = NULL;
+            callableThreads--;
+            return;
+        }
+        rrPrev = rrCurr;
+        rrCurr = rrCurr->sched_one;
+    }
+}
+
+thread rrNext(void){
+    if (rrStart == NULL){
+        return NULL;
+    }
+
+    thread nextThread = rrStart;
+    rrStart = rrStart->sched_one;
+
+    if (rrStart == NULL) {
+        rrEnd = NULL;
+        nextThread->sched_one = NULL;
+        return nextThread;
+    }
+
+    nextThread->sched_one = NULL;
+    rrEnd->sched_one = nextThread;
+    rrEnd = nextThread;
+    return nextThread;
+}
+
+// RR instantiation
+static struct scheduler rrPublish = {rrInit, rrShutdown, rrAdmit, rrRemove, rrNext};
+static scheduler RoundRobin = &rrPublish;
+/*static thread sched_head = NULL;
 void rr_init() {
     curr_td = sched_head;
 }
@@ -45,13 +129,12 @@ void rr_remove(thread victim) {
 thread rr_next(void) {
     if (!sched_head) return NULL;
     else if (sched_head->sched_one == sched_head) return NULL;
-
     
-    return sched_head->sched_one;;
+    return sched_head->sched_one;
 }
 
 struct scheduler rr_publish = {rr_init, NULL, rr_admit, rr_remove, rr_next};
-scheduler RoundRobin = &rr_publish;
+scheduler RoundRobin = &rr_publish;*/
 
 static scheduler sched = NULL;
 
@@ -172,7 +255,7 @@ tid_t lwp_gettid(void) {
 
 void  lwp_yield(void) {
     fprintf(stderr, "yield\n");
-    thread next_td = sched->next(); //terminated ones must be skipped even with other schedulers
+    thread next_td = sched->next();
     if (!next_td) exit(curr_td->status); //no more runnable threads
     
     thread old_td = curr_td;
