@@ -19,7 +19,7 @@ void swap_rfiles(rfile *old, rfile *new);
 // Will implement it as a singly linked list for now
 static thread rrStart = NULL;
 static thread rrEnd = NULL;
-
+static int callableThreads = 0;
 void rrInit(void){
     rrStart = NULL;
     rrEnd = NULL;
