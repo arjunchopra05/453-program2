@@ -154,7 +154,7 @@ tid_t lwp_create(lwpfun fun, void *param, size_t size) {
 
     thread td = (thread) malloc(sizeof(context));
     tid_cntr++;
-    //fprintf(stderr, "created thread %d\n", (int) tid_cntr);
+    fprintf(stderr, "created thread %d\n", (int) tid_cntr);
     td->tid = tid_cntr;
     td->stack = s;
     td->stacksize = stack_size;
@@ -183,7 +183,7 @@ void  lwp_start(void) {
     thread td = &mainSysThread;
     memset(&td->state, 0, sizeof(td->state));
     tid_cntr++;
-    //fprintf(stderr, "start with thread %d\n", (int)tid_cntr);
+    fprintf(stderr, "start with thread %d\n", (int)tid_cntr);
     td->tid = tid_cntr;
     td->status = MKTERMSTAT(LWP_LIVE,0);
     td->stack = NULL;
@@ -195,7 +195,7 @@ void  lwp_start(void) {
 }
 
 void  lwp_exit(int status) {
-    //fprintf(stderr, "exiting thread %d\n", (int)curr_td->tid);
+    fprintf(stderr, "exiting thread %d\n", (int)curr_td->tid);
     thread exit_td = curr_td;
     sched->remove(curr_td);
     exit_td->status = MKTERMSTAT(LWP_TERM, status);
@@ -220,7 +220,7 @@ tid_t lwp_gettid(void) {
 }
 
 void  lwp_yield(void) {
-    //fprintf(stderr, "yield\n");
+    fprintf(stderr, "yield\n");
     thread next_td = sched->next();
     if (!next_td) exit(curr_td->status); //no more runnable threads
     
@@ -230,7 +230,7 @@ void  lwp_yield(void) {
 }
 
 tid_t lwp_wait(int *status) {
-    //fprintf(stderr, "wait\n");
+    fprintf(stderr, "wait\n");
     int stat;
     int runnableCond = 0;
     thread iter;
@@ -252,7 +252,7 @@ tid_t lwp_wait(int *status) {
     if (!zomb_head) {
         if (!runnableCond) return NO_THREAD;
 
-        //fprintf(stderr, "blocking\n");
+        fprintf(stderr, "blocking\n");
         //block until one terminates
         add_queue(&wait_head, curr_td);
         sched->remove(curr_td);
@@ -324,8 +324,8 @@ thread tid2thread(tid_t tid) {
 }
 
 static void lwp_wrap(lwpfun fun, void *arg) {
-    //fprintf(stderr, "wrapper\n");
+    fprintf(stderr, "wrapper\n");
     int rval = fun(arg);
-    //fprintf(stderr, "finished lwpfun\n");
+    fprintf(stderr, "finished lwpfun\n");
     lwp_exit(rval);
 }
