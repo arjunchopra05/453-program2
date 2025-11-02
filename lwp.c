@@ -236,18 +236,13 @@ void  lwp_exit(int status) {
     sched->remove(curr_td);
     exit_td->status = MKTERMSTAT(LWP_TERM, status);
 
-    /* If there is a waiting thread associate to it then reschedule it */
     if(wait_head) {
         thread waiting = wait_head;
         rm_queue(&wait_head, waiting);
         sched->admit(waiting);
     }
 
-    /* no waiting threads, so add self to a queue of zombies */
-    else {
-        add_queue(&zomb_head, exit_td);
-    }
-
+    add_queue(&zomb_head, exit_td);
     lwp_yield();
 }
 
