@@ -1,6 +1,6 @@
 #ifndef SNAKEH
 #define SNAKEH
-#include <lwp.h>
+#include "lwp.h"
 
 typedef enum {NW,N,NE,W,E,SW,S,SE} direction;
 #define NUMDIRS 8
