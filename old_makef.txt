@@ -1,3 +1,5 @@
+-no-pie
+
 export LD_LIBRARY_PATH=$(CURDIR):$$(LD_LIBRARY_PATH)
 
 magic64.o: magic64.S

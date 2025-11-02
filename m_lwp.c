@@ -293,7 +293,7 @@ void  lwp_yield(void){
     // Get ready for a context swap in the registers
     thread prevThread = currThread;
     currThread = nextThread;
-    swap_rfiles(&(prevThread->state), &(currThread->state)); 
+    swap_rfiles(&(prevThread->state), &(currThread->state));
 }
 
 // start the LWP system

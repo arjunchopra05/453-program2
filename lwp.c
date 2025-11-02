@@ -92,7 +92,7 @@ void rm_queue(thread *list_head, thread victim_td) {
 static tid_t tid_cntr = NO_THREAD;
 tid_t lwp_create(lwpfun fun, void *param, size_t size) {
     if (!sched) sched = RoundRobin;
-
+    
     size_t stack_size;
     long page_size = sysconf(_SC_PAGE_SIZE);
     if (page_size == -1) stack_size = DFLT_STACK;
@@ -113,6 +113,7 @@ tid_t lwp_create(lwpfun fun, void *param, size_t size) {
 
     thread td = (thread) malloc(sizeof(context));
     tid_cntr++;
+    fprintf(stderr, "created thread %d\n", (int) tid_cntr);
     td->tid = tid_cntr;
     td->stack = s;
     td->stacksize = stack_size;
@@ -124,7 +125,7 @@ tid_t lwp_create(lwpfun fun, void *param, size_t size) {
     
     unsigned long *s_top = (unsigned long *)((char *) td->stack + td->stacksize);
     s_top = (unsigned long *) ((unsigned long)s_top & ~(16)); //alignment
-    *(--s_top) = 0;
+    // *(--s_top) = 0;
     *(--s_top) = (unsigned long) lwp_wrap; //this is not working <<<
     *(--s_top) = 0;
     
@@ -133,75 +134,6 @@ tid_t lwp_create(lwpfun fun, void *param, size_t size) {
 
     sched->admit(td);
     return td->tid;
-
-    /*
-    thread newThread = calloc(1, sizeof(context));
-    if(!newThread) {
-        perror("lwp_create: calloc for a thread context failed");
-        return NO_THREAD;
-    }
-
-    
-    size_t stackSize;
-
-    long pageSize = sysconf(_SC_PAGE_SIZE);
-    if(pageSize == -1) {
-        perror("stack_size: page size error, using default size\n");
-        return (size_t)DFLT_STACK;
-    }
-
-    struct rlimit rlim;
-    if(getrlimit(RLIMIT_STACK, &rlim) == -1) {
-        perror("stack_size: stack limit error, using default size\n");
-        return (size_t)DFLT_STACK;
-    }
-
-    
-    if(rlim.rlim_cur == RLIM_INFINITY || rlim.rlim_cur == 0) {
-        stackSize = (size_t)DFLT_STACK;
-    }
-
-    else {
-        stackSize = (size_t)rlim.rlim_cur;
-    }
-
-    
-    stackSize = (stackSize - 1) / (size_t)pageSize + 1;
-    stackSize *= (size_t)pageSize;
-    void *stack = mmap(NULL, stackSize, PROT_READ | PROT_WRITE,
-                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
-    if(stack == MAP_FAILED) {
-        perror("lwp_create: stack creation failed\n");
-        free(newThread);
-        return NO_THREAD;
-    }
-
-    tid_cntr++;
-
-    
-    newThread->tid          = tid_cntr;
-    newThread->stack        = (unsigned long *)stack;
-    newThread->stacksize    = stackSize;
-    newThread->status       = MKTERMSTAT(LWP_LIVE, 0);
-    newThread->state.fxsave = FPU_INIT;
-    newThread->state.rdi    = (unsigned long)fun;
-    newThread->state.rsi    = (unsigned long)param;
-
-    
-    unsigned long *stackTop = (unsigned long *)((char *)stack + stackSize);
-    stackTop = (unsigned long*)((unsigned long)stackTop & ~(16));
-
-    *--stackTop = 0;                            
-    *--stackTop = (unsigned long)lwp_wrap;      
-    *--stackTop = 0;                            
-
-    newThread->state.rbp = (unsigned long)stackTop;
-    newThread->state.rsp = (unsigned long)stackTop;
-    
-    
-    sched->admit(newThread);
-
-    return newThread->tid;*/
 }
 
 void  lwp_start(void) {
@@ -210,6 +142,7 @@ void  lwp_start(void) {
     thread td = (thread) malloc(sizeof(context));
     memset(td, 0, sizeof(context));
     tid_cntr++;
+    fprintf(stderr, "start with thread %d\n", (int)tid_cntr);
     td->tid = tid_cntr;
     td->status = MKTERMSTAT(LWP_LIVE,0);
     td->stack = NULL;
@@ -238,14 +171,17 @@ tid_t lwp_gettid(void) {
 }
 
 void  lwp_yield(void) {
+    fprintf(stderr, "yield\n");
     thread next_td = sched->next(); //terminated ones must be skipped even with other schedulers
     if (!next_td) exit(curr_td->status); //no more runnable threads
     
+    thread old_td = curr_td;
     curr_td = next_td;
-    swap_rfiles(&(curr_td->state), &(next_td->state));
+    swap_rfiles(&(old_td->state), &(next_td->state));
 }
 
 tid_t lwp_wait(int *status) {
+    fprintf(stderr, "wait\n");
     int stat;
     int runnableCond = 0;
     thread iter;
@@ -336,6 +272,8 @@ thread tid2thread(tid_t tid) {
 }
 
 static void lwp_wrap(lwpfun fun, void *arg) {
+    fprintf(stderr, "wrapper\n");
     int rval = fun(arg);
+    fprintf(stderr, "finished lwpfun\n");
     lwp_exit(rval);
 }
