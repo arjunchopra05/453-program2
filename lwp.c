@@ -270,12 +270,17 @@ tid_t lwp_wait(int *status) {
     thread iter;
 
     iter = curr_td;
-    if (iter) {
+    /*if (iter) {
         do {
             stat = iter->status;
             if (LWPTERMSTAT(stat) == LWP_LIVE) runnableCond = 1;
             iter = iter->sched_one;
         } while (iter != curr_td);
+    }*/
+    while (iter) {
+        stat = iter->status;
+        if (LWPTERMSTAT(stat) == LWP_LIVE) runnableCond = 1;
+        iter = iter->sched_one;
     }
 
     if (!zomb_head) {
