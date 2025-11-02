@@ -14,7 +14,7 @@ liblwp.a: lwp.o smartalloc.o magic64.o
 	ranlib liblwp.a
 
 clean:
-	rm -rf lwp.o liblwp.a *~ TAGS core
+	rm -rf lwp.o liblwp.a magic64.o smartalloc.o *~ TAGS core
 
 numbers: numbersmain.c liblwp.a
 	gcc -Wall -Werror -o numbers numbersmain.c liblwp.a AlwaysZero.o
