@@ -19,7 +19,6 @@ void swap_rfiles(rfile *old, rfile *new);
 // Will implement it as a singly linked list for now
 static thread rrStart = NULL;
 static thread rrEnd = NULL;
-static int callableThreads = 0;
 void rrInit(void){
     rrStart = NULL;
     rrEnd = NULL;
@@ -41,7 +40,6 @@ void rrAdmit(thread new){
         rrEnd->sched_one = new;
         rrEnd = new;
     }
-    callableThreads++;
 }
 
 // remove the passed context from the scheduler's scheduling pool (do not have to worry about exiting a thread here)
@@ -68,7 +66,6 @@ void rrRemove(thread victim){
                 }
             }
             victim->sched_one = NULL;
-            callableThreads--;
             return;
         }
         rrPrev = rrCurr;
@@ -100,9 +97,6 @@ thread rrNext(void){
 static struct scheduler rrPublish = {rrInit, rrShutdown, rrAdmit, rrRemove, rrNext};
 static scheduler RoundRobin = &rrPublish;
 /*static thread sched_head = NULL;
-void rr_init() {
-    curr_td = sched_head;
-}
 
 void rr_admit(thread new) {
     if (!sched_head) {
@@ -133,7 +127,7 @@ thread rr_next(void) {
     return sched_head->sched_one;
 }
 
-struct scheduler rr_publish = {rr_init, NULL, rr_admit, rr_remove, rr_next};
+struct scheduler rr_publish = {NULL, NULL, rr_admit, rr_remove, rr_next};
 scheduler RoundRobin = &rr_publish;*/
 
 static scheduler sched = NULL;
@@ -238,9 +232,22 @@ void  lwp_start(void) {
 
 void  lwp_exit(int status) {
     fprintf(stderr, "exiting thread %d\n", (int)curr_td->tid);
-    curr_td->status = MKTERMSTAT(LWP_TERM, status);
-    add_queue(&zomb_head, curr_td);
+    thread exit_td = curr_td;
     sched->remove(curr_td);
+    exit_td->status = MKTERMSTAT(LWP_TERM, status);
+
+    /* If there is a waiting thread associate to it then reschedule it */
+    if(wait_head) {
+        thread waiting = wait_head;
+        rm_queue(&wait_head, waiting);
+        sched->admit(waiting);
+    }
+
+    /* no waiting threads, so add self to a queue of zombies */
+    else {
+        add_queue(&zomb_head, exit_td);
+    }
+
     lwp_yield();
 }
 
@@ -293,12 +300,10 @@ tid_t lwp_wait(int *status) {
         lwp_yield();
     }
 
-    else {
-        iter = zomb_head;
-        stat = iter->status;
-        rm_queue(&zomb_head, iter);
-    }
-    
+    iter = zomb_head;
+    stat = iter->status;
+
+    rm_queue(&zomb_head, iter);
     *status = stat;
     
     tid_t term_tid = iter->tid;
