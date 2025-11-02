@@ -17,10 +17,10 @@ clean:
 	rm -rf lwp.o liblwp.a *~ TAGS core
 
 numbers: numbersmain.c liblwp.a
-	gcc -Wall -Werror -o numbers numbersmain.c liblwp.a AlwaysZero.o -no-pie
+	gcc -Wall -Werror -o numbers numbersmain.c liblwp.a AlwaysZero.o
 
 snakes: hungrysnakes.c liblwp.a
-	gcc -Wall -Werror -o snakes hungrysnakes.c liblwp.a -lncurses AlwaysZero.o -no-pie
+	gcc -Wall -Werror -o snakes hungrysnakes.c liblwp.a -lncurses AlwaysZero.o
 
 cleantest:
 	rm -rf numbers snakes
